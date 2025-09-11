@@ -1,0 +1,31 @@
+:root {
+--bg: #0b0b0c; --card: #111214; --text: #e5e7eb; --muted: #94a3b8;
+--primary: #2563eb; --success: #16a34a; --danger: #dc2626; --chip: #1f2937;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+.container { max-width: 920px; margin: 32px auto; padding: 0 16px; }
+h1 { font-size: 28px; margin: 0 0 6px; }
+.sub { color: var(--muted); margin: 0 0 24px; }
+.card { background: var(--card); border: 1px solid #1f2937; border-radius: 14px; padding: 20px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+label { display: block; margin: 10px 0 8px; color: var(--muted); }
+textarea { width: 100%; background: #0f1115; color: var(--text); border: 1px solid #273043; border-radius: 10px; padding: 12px; resize: vertical; }
+.btn { background: var(--primary); color: white; border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+.btn.outline { background: transparent; border: 1px solid var(--primary); }
+.actions { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+.hint { color: var(--muted); font-size: 13px; }
+.or { text-align: center; color: var(--muted); margin: 12px 0; }
+.dropzone { border: 2px dashed #334155; border-radius: 12px; padding: 18px; text-align: center; color: var(--muted); background: #0f1115; }
+.dropzone.drag { border-color: var(--primary); background: #0d1330; color: #bfd2ff; }
+.link { background: none; border: none; color: #9ab7ff; text-decoration: underline; cursor: pointer; }
+.hidden { display: none; }
+.row { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.badge { padding: 6px 10px; border-radius: 999px; font-weight: 600; background: #334155; }
+.badge.success { background: rgba(22,163,74,.2); color: #86efac; border: 1px solid rgba(22,163,74,.5); }
+.badge.neutral { background: rgba(220,38,38,.1); color: #fca5a5; border: 1px solid rgba(220,38,38,.4); }
+.conf { color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+.chips .chip { background: var(--chip); border: 1px solid #273043; border-radius: 999px; padding: 6px 10px; font-size: 13px; color: #cbd5e1; }
+.meta { color: var(--muted); font-size: 13px; margin-top: 10px; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #111827; border: 1px solid #334155; color: #e5e7eb; padding: 10px 14px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
