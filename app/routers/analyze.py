@@ -42,17 +42,14 @@ async def analyze(
     # resposta
     fallbacks = []
     used_openai = False
-    if category == "Improdutivo":
+    
+    ai_text = ai_reply(category, snippet, signals)
+    if ai_text: 
+        reply_text = ai_text
+        used_openai = True
+    else:
         reply_text = reply_template(category, signals)
         fallbacks.append("templates")
-    else:
-        ai_text = ai_reply(category, snippet, signals)
-        if ai_text:
-            reply_text = ai_text
-            used_openai = True
-        else:
-            reply_text = reply_template(category, signals)
-            fallbacks.append("templates")
 
     # meta
     meta = {
