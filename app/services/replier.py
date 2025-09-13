@@ -12,34 +12,49 @@ def reply_template(category: str, signals: List[str]) -> str:
         )
     else:
         return (
-            "Olá! Obrigado pela mensagem. No momento **não é necessária nenhuma ação** da nossa equipe. "
-            "Se precisar de algo, é só nos chamar. Abraços!"
+            "Obrigado pela mensagem! Que bom receber seu retorno. "
+            "No momento, não é necessária nenhuma ação da nossa equipe. "
+            "Se surgir qualquer coisa, estamos por aqui. 😊"
         )
 
-def ai_reply(category: str, snippet: str, signals: list[str]) -> str | None:
+def ai_reply(category: str, snippet: str, signals: list[str], temperature: float | None = None) -> str | None:
     if not OPENAI_KEY:
         return None
     try:
         from openai import OpenAI
         client = OpenAI(api_key=OPENAI_KEY)
+
+        # tom mais humano e curto; regras diferentes por classe
         sys_msg = (
-            "Você é um assistente de atendimento ao cliente em português (Brasil). "
-            "Responda com tom profissional, cordial e objetivo, em até 6–8 linhas. "
-            "Se for PRODUTIVO: confirme recebimento, peça dados faltantes (ID do chamado, prints, datas) "
-            "e prometa apenas a primeira atualização (até 1 dia útil). "
-            "Se for IMPRODUTIVO: agradeça e informe que não há ação. "
-            "Nunca exponha dados sensíveis nem invente números/protocolos."
+            "Você é um assistente de atendimento ao cliente em português do Brasil. "
+            "Escreva como uma pessoa: natural, claro e cordial, sem jargões e sem soar automático. "
+            "Use 3 a 6 linhas. Evite repetir a mesma ideia. Não invente números, ID ou prazos exatos que não foram dados. "
+            "Política: "
+            "- Se o email for PRODUTIVO: confirme recebimento, peça somente o essencial (ID do chamado, prints, datas) "
+            "  e prometa APENAS a primeira atualização (até 1 dia útil). "
+            "- Se o email for IMPRODUTIVO: agradeça, reconheça o contexto e encerre gentilmente sem pedir ação adicional."
         )
+
+        # pequena dica de estilo específica por classe
+        if category == "Improdutivo":
+            style_hint = "Tom leve e simpático; personalize 1 detalhe do contexto e finalize de forma positiva."
+            temp = temperature if temperature is not None else 0.6  # um pouco mais criativo
+        else:
+            style_hint = "Tom objetivo e profissional; peça só o mínimo necessário."
+            temp = temperature if temperature is not None else 0.4
+
         user_msg = (
             f"Categoria: {category}\n"
             f"Sinais: {', '.join(signals) if signals else 'nenhum'}\n"
-            f"Trecho do email (limpo): {snippet[:900]}"
+            f"Contexto do email (limpo, até 900 chars):\n{snippet[:900]}\n\n"
+            f"Estilo: {style_hint}"
         )
+
         resp = client.chat.completions.create(
             model=OPENAI_MODEL,
-            messages=[{"role": "system", "content": sys_msg},
-                      {"role": "user", "content": user_msg}],
-            temperature=TEMP,
+            messages=[{"role":"system","content":sys_msg},
+                      {"role":"user","content":user_msg}],
+            temperature=temp,
             max_tokens=MAX_TOKENS,
         )
         return resp.choices[0].message.content.strip()
