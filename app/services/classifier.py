@@ -62,6 +62,24 @@ def detect_signals(text_norm: str) -> Tuple[List[str], List[str], float]:
             neg_hits.append(key); score -= w
     return pos_hits, neg_hits, score
 
+# termos que NÃO implicam ação sozinhos (contexto)
+CONTEXT_ONLY_TERMS = {
+    "chamado","contrato","protocolo","anexo","arquivo","nota fiscal","nf","fatura","boleto","cliente","conta"
+}
+# verbos/pedidos claros (pt/en/es)
+REQUEST_TERMS = {
+    # pt
+    "verificar","poderiam verificar","podem verificar","informar","enviar","mandar",
+    "emitir","atualizar","abrir","analisar","corrigir","resolver","processar","gerar",
+    # en
+    "check","could you","can you","please send","share","provide","issue","update","open","fix","resolve","process","generate",
+    # es
+    "verificar","podrian","pueden","enviar","mandar","emitir","actualizar","abrir","analizar","corregir","resolver","procesar","generar"
+}
+# termos informativos (status/prazo) — contam como ação se vierem em pergunta
+INFO_TERMS = {"status","prazo","andamento","atualizacao","update","eta","estado","plazo"}
+
+
 # --- regras contextuais
 ACTION_HINTS = {
     "status","andamento","prazo","erro","atualizacao","protocolo",
@@ -134,7 +152,6 @@ def rule_classifier(text: str) -> Tuple[str, float, List[str]]:
 def apply_overrides(norm: str, category: str, confidence: float, signals: list[str]) -> tuple[str, float, list[str], dict]:
     """
     Aplica regras finais de bom senso. Retorna (category, confidence, signals, meta_overrides).
-    meta_overrides indica quais regras foram acionadas (para explicabilidade).
     """
     meta = {
         "gratitude_no_action": False,
@@ -146,31 +163,30 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         "noise_filter": [],
     }
 
-    # filtro anti-ruído: 'nf' só vale se "nota fiscal" ou token isolado
     import re
+
+    # --- filtro anti-ruído: 'nf' só vale se "nota fiscal" ou token isolado ---
     def _looks_like_nf(txt: str) -> bool:
         return ("nota fiscal" in txt) or bool(re.search(r"\bnf\b", txt))
     if "nf" in signals and not _looks_like_nf(norm):
         signals = [s for s in signals if s != "nf"]
         meta["noise_filter"].append("nf")
 
+    # --- intenção de ação: verbo OU (termo de status + pergunta). 
+    # Termos de contexto isolados NÃO contam como ação. ---
+    has_request_verb = any(t in norm for t in REQUEST_TERMS)
+    has_info_term   = any(t in norm for t in INFO_TERMS)
+    has_question    = "?" in norm
+    has_action = has_request_verb or (has_info_term and has_question)
+
     # (1) Gratidão/Felicitação sem pedido -> Improdutivo
     has_gratitude = any(t in norm for t in GRATITUDE_TERMS)
-
-    # termos de ação (PT/EN/ES) — sem 'suporte/support'
-    action_terms = {
-        "status","andamento","prazo","erro","atualiza","protocolo","chamado","contrato","boleto","fatura",
-        "nota fiscal","nf","anexo","arquivo","verificar","processado","emitir","emissao","correcao","resolver","eta",
-        # idiomas
-        "update","ticket","eta","estado","actualizacion","seguimiento","plazo","adjunto","factura","contract","invoice","attachment"
-    }
-    has_action = any(t in norm for t in action_terms) or any(t in norm for t in ACTION_TERMS_EXTRA)
-
     if has_gratitude and not has_action:
         category = "Improdutivo"
         confidence = max(float(confidence or 0.0), 0.80)
         meta["gratitude_no_action"] = True
-        if not any(x.strip().lower().startswith("obrigado") for x in signals):
+        # garante 'obrigado' uma única vez no topo
+        if not any((s or "").strip().lower().startswith("obrigado") for s in signals):
             signals = ["obrigado"] + signals
 
     # (2) Marketing/Newsletter/Convite sem pedido -> Improdutivo
@@ -180,12 +196,11 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
             confidence = max(float(confidence or 0.0), 0.75)
         meta["marketing_newsletter"] = True
 
-    # (3) Resolvido/Cancelado/Desconsiderar -> Improdutivo
-    if any(t in norm for t in RESOLVED_TERMS) and not has_action:
-        if category != "Improdutivo":
-            category = "Improdutivo"
-        confidence = max(float(confidence or 0.0), 0.80)
-        meta["resolved_or_cancelled"] = True
+    # (3) Resolvido/Cancelado/Desconsiderar -> SEMPRE Improdutivo (incondicional)
+    if any(t in norm for t in RESOLVED_TERMS):
+        category = "Improdutivo"
+        confidence = max(float(confidence or 0.0), 0.85)
+        meta["resolved_or_cancelled"] = True  # <<< agora dentro do if, com confiança maior
 
     # (4) Ação detectada, modelo disse Improdutivo com baixa confiança -> força Produtivo
     if has_action and category == "Improdutivo" and float(confidence or 0.0) < 0.80:
@@ -197,11 +212,10 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
     if any(t in norm for t in URGENCY_TERMS) and category == "Produtivo":
         confidence = max(float(confidence or 0.0), 0.78)
         meta["urgency_boost"] = True
-        if "urgente" not in signals and "urgente" in norm:
+        if "urgente" in norm and "urgente" not in signals:
             signals = ["urgente"] + signals
 
-
-    # (6) Pergunta muito curta (ex.: "E o status?") -> Produtivo com piso de confiança
+    # (6) Pergunta muito curta (ex.: "E o status?") -> Produtivo com piso
     short_q = (len(norm) <= 40 and "?" in norm)
     if short_q and any(t in norm for t in {"status","prazo","andamento","update","eta","ticket"}):
         if category != "Produtivo":
@@ -209,7 +223,22 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         confidence = max(float(confidence or 0.0), 0.70)
         meta["short_question_hint"] = True
 
+    # --- normalização de sinais ('obrigado' colapsado, sem duplicatas) ---
+    def _normalize_signals(items: list[str]) -> list[str]:
+        out = []
+        for s in items:
+            s2 = re.sub(r"\s+", " ", (s or "").strip().lower())
+            if s2 in {"muito obrigado", "obrigado!", "obrigado.", "obrigado,"}:
+                s2 = "obrigado"
+            out.append(s2)
+        dedup = list(dict.fromkeys(out))
+        if "obrigado" in dedup:
+            dedup = ["obrigado"] + [x for x in dedup if x != "obrigado"]
+        return dedup
+
+    signals = _normalize_signals(signals)
     return category, round(float(confidence), 2), signals, meta
+
 
 # --- HF zero-shot
 def hf_zero_shot(text: str) -> tuple[str, float] | None:
