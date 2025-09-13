@@ -1,57 +1,77 @@
 <!doctype html>
 <html lang="pt-br">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Email Auto Classifier</title>
-    <link rel="stylesheet" href="/static/style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Email Auto Classifier</title>
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-    <header class="container">
-        <h1>Email Auto Classifier</h1>
-        <p class="sub">Envie um .txt/.pdf ou cole o texto do e-mail. Classifico em Produtivo/Improdutivo e sugiro uma resposta.</p>
-    </header>
+  <header class="container">
+    <h1>Email Auto Classifier</h1>
+    <p class="sub">Envie um .txt/.pdf ou cole o texto do e-mail. Classifico em Produtivo/Improdutivo e sugiro uma resposta.</p>
+  </header>
 
-    <main class="container">
-        <section class="card">
-            <h2>1) Entrada</h2>
-            <div id="dropzone" class="dropzone" tabindex="0">
-                <input id="file" type="file" accept=".txt,.pdf" hidden />
-                <div>
-                    <strong>Arraste</strong> um arquivo .txt/.pdf aqui ou <button id="pick" type="button" class="link">clique para selecionar</button>
-                </div>
-            </div>
-            <div class="or">ou</div>
-            <label for="text">Cole o conteúdo do e-mail</label>
-            <textarea id="text" rows="8" placeholder="Cole aqui..."></textarea>
-            <div class="actions">
-                <button id="analyze" class="btn">Analisar</button>
-                <span id="hint" class="hint">Nada é salvo no servidor.</span>
-            </div>
-        </section>
+  <main class="container">
+    <section class="card">
+      <h2>1) Entrada</h2>
+      <div id="dropzone" class="dropzone" tabindex="0" aria-label="Área para arrastar arquivo">
+        <input id="file" type="file" accept=".txt,.pdf" hidden />
+        <div id="dropContent">
+          <strong>Arraste</strong> um arquivo .txt/.pdf aqui ou
+          <button id="pick" type="button" class="link">clique para selecionar</button>
+        </div>
+      </div>
 
-        <section id="result" class="card hidden">
-            <h2>2) Resultado</h2>
-            <div class="row">
-                <div class="badge" id="badge">—</div>
-                <div id="confidence" class="conf">Confiança: —</div>
-            </div>
-            <div id="signals" class="chips"></div>
+      <div class="or" role="separator" aria-hidden="true">ou</div>
 
-            <h3>Resposta sugerida</h3>
-            <textarea id="reply" rows="6"></textarea>
-            <div class="actions">
-                <button id="copy" class="btn outline">Copiar</button>
-                <button id="copyClear" class="btn">Copiar & Limpar</button>
-            </div>
+      <label for="text">Cole o conteúdo do e-mail</label>
+      <textarea id="text" rows="8" placeholder="Cole aqui..."></textarea>
 
+      <div class="actions">
+        <button id="analyze" class="btn" aria-busy="false">Analisar</button>
+        <span id="loader" class="hint hidden">Processando…</span>
+        <span id="hint" class="hint">Nada é salvo no servidor.</span>
+      </div>
+    </section>
 
-            <div class="meta" id="meta"></div>
-        </section>
+    <section id="result" class="card hidden" aria-live="polite">
+      <h2>2) Resultado</h2>
 
-        <div id="toast" class="toast hidden"></div>
-    </main>
+      <div class="row">
+        <div class="badge" id="badge" aria-label="Categoria">—</div>
+        <div class="conf-wrap">
+          <div class="conf-label">Confiança <span id="confVal">—</span></div>
+          <div class="conf-bar"><div id="confBar" class="conf-fill" style="width:0%"></div></div>
+        </div>
+      </div>
 
-    <script src="/static/app.js"></script>
+      <div class="row">
+        <div>
+          <div class="label-small">Sinais detectados</div>
+          <div id="signals" class="chips"></div>
+        </div>
+        <div>
+          <div class="label-small">Regras aplicadas</div>
+          <div id="overrides" class="chips"></div>
+        </div>
+      </div>
+
+      <h3>Resposta sugerida</h3>
+      <textarea id="reply" rows="6"></textarea>
+      <div class="actions">
+        <button id="copy" class="btn outline">Copiar</button>
+        <button id="copyClear" class="btn">Copiar & Limpar</button>
+        <button id="toggleJson" class="btn ghost">Ver JSON</button>
+      </div>
+
+      <pre id="rawJson" class="json hidden" aria-hidden="true"></pre>
+      <div class="meta" id="meta"></div>
+    </section>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </main>
+
+  <script src="/static/app.js"></script>
 </body>
 </html>
