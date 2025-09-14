@@ -1,14 +1,12 @@
 # app/routers/analyze.py
+import time, math
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from pathlib import Path
 
-from app.services.classifier import (
-    read_txt_pdf, classify_email, clean_text
-)
+from app.services.classifier import read_txt_pdf, classify_email, clean_text
 from app.services.replier import ai_reply, reply_template
 from app.schemas import AnalyzeResponse
-from app.core.settings import OPENAI_KEY
 
 router = APIRouter()
 
@@ -28,6 +26,8 @@ async def analyze(
     email_file: UploadFile | None = File(None),
     email_text: str | None = Form(None),
 ):
+    start = time.perf_counter()
+
     if not email_file and not email_text:
         raise HTTPException(400, detail="Envie um arquivo .txt/.pdf ou cole o texto do email.")
 
@@ -53,16 +53,15 @@ async def analyze(
     text_clean = clean_text(content)
     snippet = text_clean[:1000]
 
-
     # classificar
     category, confidence, signals, info = classify_email(content)
 
     # resposta
     fallbacks = []
     used_openai = False
-    
+
     ai_text = ai_reply(category, snippet, signals)
-    if ai_text: 
+    if ai_text:
         reply_text = ai_text
         used_openai = True
     else:
@@ -70,6 +69,7 @@ async def analyze(
         fallbacks.append("templates")
 
     # meta
+    elapsed_ms = max(1, math.ceil((time.perf_counter() - start) * 1000))  
     meta = {
         "language": "pt",
         "signals": signals,
@@ -77,6 +77,8 @@ async def analyze(
         "used_openai": used_openai,
         "fallbacks": fallbacks,
         "overrides": info.get("overrides"),
+        "elapsed_ms": elapsed_ms,
+        "output_size": len(reply_text or ""),
     }
 
     return AnalyzeResponse(

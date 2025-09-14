@@ -202,9 +202,15 @@ function renderResult(data) {
   // json bruto
   if (rawJson) rawJson.textContent = JSON.stringify(data, null, 2);
 
-  // meta
+  const t = data.meta?.elapsed_ms ?? '—';
+  const size = data.meta?.output_size ?? '—';
   meta.textContent =
-    `Usou HF: ${data.meta?.used_hf ? 'sim' : 'não'} | Usou LLM: ${data.meta?.used_openai ? 'sim' : 'não'} | Fallbacks: ${(data.meta?.fallbacks||[]).join(', ')}`;
+    `Usou HF: ${data.meta?.used_hf ? 'sim' : 'não'} | ` +
+    `Usou LLM: ${data.meta?.used_openai ? 'sim' : 'não'} | ` +
+    `Fallbacks: ${(data.meta?.fallbacks || []).join(', ')} | ` +
+    `Tempo: ${t} ms | ` +
+    `Tamanho: ${size} chars`;
+
 }
 
 // ===== ações =====
