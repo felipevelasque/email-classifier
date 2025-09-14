@@ -160,6 +160,7 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         "resolved_or_cancelled": False,
         "urgency_boost": False,
         "short_question_hint": False,
+        "neutral-short": False,
         "noise_filter": [],
     }
 
@@ -215,11 +216,31 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         if "urgente" in norm and "urgente" not in signals:
             signals = ["urgente"] + signals
 
-    # (6) Pergunta muito curta (ex.: "E o status?") -> Produtivo com piso
-    short_q = (len(norm) <= 40 and "?" in norm)
-    if short_q and any(t in norm for t in {"status","prazo","andamento","update","eta","ticket"}):
-        if category != "Produtivo":
-            category = "Produtivo"
+    # (6) Pergunta/solicitação curta sobre status/prazo -> Produtivo com piso de confiança
+    # Funciona COM ou SEM "?" (ex.: "e o status", "status por favor", "prazo do ticket 123")
+    import re
+
+    status_terms = {"status", "prazo", "andamento", "update", "eta", "ticket"}
+    short_len = len(norm) <= 40
+    # poucas palavras? ajuda a pegar frases curtinhas sem pontuação
+    short_tokens = len(norm.split()) <= 6
+
+    # padrões comuns de pergunta/solicitação sem interrogação
+    looks_like_question = (
+        "?" in norm
+        or norm.strip() in {
+            "status", "qual o status", "e o status", "como está o status",
+            "status do chamado", "status do ticket", "e o prazo", "qual o prazo"
+        }
+        or any(norm.strip().endswith(t) for t in status_terms)
+        or any(f"{t} por favor" in norm for t in status_terms)
+        or bool(re.search(r"\b(qual|sobre|e\s*o|e\s*quanto)\b", norm))
+    )
+
+    has_status_term = any(t in norm for t in status_terms)
+
+    if (short_len or short_tokens) and has_status_term and looks_like_question:
+        category = "Produtivo"
         confidence = max(float(confidence or 0.0), 0.70)
         meta["short_question_hint"] = True
 
@@ -237,6 +258,23 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         return dedup
 
     signals = _normalize_signals(signals)
+
+    # (7) Mensagem muito curta e neutra (ex.: "feliz", "olá", "ok") -> Improdutivo
+    # Evita cair no fail-safe Produtivo quando não há intenção de ação.
+    neutral_short = (len(norm.split()) <= 2 and len(norm) <= 12)
+
+    # já calculados acima / disponíveis aqui:
+    # - has_gratitude
+    # - has_action (via request verb ou info+pergunta)
+    has_status_term = any(t in norm for t in {"status","prazo","andamento","update","eta","ticket"})
+    has_marketing   = any(t in norm for t in MARKETING_TERMS)
+    has_resolved    = any(t in norm for t in RESOLVED_TERMS)
+
+    if neutral_short and not (has_action or has_status_term or has_gratitude or has_marketing or has_resolved):
+        category = "Improdutivo"
+        confidence = max(float(confidence or 0.0), 0.65)
+        meta["neutral_short"] = True
+
     return category, round(float(confidence), 2), signals, meta
 
 
