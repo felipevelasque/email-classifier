@@ -1,7 +1,7 @@
 // ===== elementos =====
 const dropzone = document.getElementById('dropzone');
 const dropContent = document.getElementById('dropContent'); // dentro do dropzone
-const fileInput = document.getElementById('file');
+let fileInput = document.getElementById('file');
 const textArea = document.getElementById('text');
 const analyzeBtn = document.getElementById('analyze');
 
@@ -24,6 +24,7 @@ const copyBtn = document.getElementById('copy');
 const copyClearBtn = document.getElementById('copyClear');
 
 let droppedFile = null;
+
 
 // ===== helpers =====
 function showToast(msg) {
@@ -57,7 +58,7 @@ function setDropzoneFile(name) {
   `;
   document.getElementById('clearFile')?.addEventListener('click', () => {
     droppedFile = null;
-    fileInput.value = '';
+    if (fileInput) fileInput.value = '';
     resetDropzone();
   });
 }
@@ -115,11 +116,18 @@ async function analyze() {
 
   try {
     const fd = new FormData();
-    if (droppedFile) {
+    const txt = (textArea.value || '').trim();
+
+    const hasFile = !!(droppedFile && droppedFile.name && droppedFile.size > 0);
+    const hasText = !!txt;
+
+    if (hasFile && hasText) {
+      fd.append('email_file', droppedFile);
+      fd.append('email_text', txt);
+    } else if (hasFile) {
       fd.append('email_file', droppedFile);
     } else {
-      const txt = (textArea.value || '').trim();
-      if (!txt) { showToast('Cole um texto ou envie um arquivo.'); return; }
+      if (!hasText) { showToast('Cole um texto ou envie um arquivo.'); return; }
       fd.append('email_text', txt);
     }
 
@@ -136,26 +144,12 @@ async function analyze() {
     }
 
     renderResult(data);
-    // 🧹 Limpa inputs após sucesso
+
+    // 🧹 Limpa inputs após sucesso (sem recriar o dropzone)
     textArea.value = '';
     droppedFile = null;
-    fileInput.value = '';
-
-    // restaura o dropzone para o estado inicial
-    dropzone.innerHTML = `
-        <input id="file" type="file" accept=".txt,.pdf" hidden />
-        <div>
-            <strong>Arraste</strong> um arquivo .txt/.pdf aqui ou 
-            <button id="pick" type="button" class="link">clique para selecionar</button>
-        </div>
-    `;
-    // reanexa os listeners, porque recriamos o input
-    const newFileInput = dropzone.querySelector('#file');
-    newFileInput.addEventListener('change', (e) => {
-        droppedFile = e.target.files[0] || null;
-        if (droppedFile) showToast(`Arquivo selecionado: ${droppedFile.name}`);
-    });
-    document.getElementById('pick').addEventListener('click', () => newFileInput.click());
+    if (fileInput) fileInput.value = '';
+    resetDropzone();
 
   } catch (e) {
     showToast(e.message || 'Erro ao processar');
@@ -242,23 +236,19 @@ toggleJsonBtn?.addEventListener('click', () => {
   rawJson.classList.toggle('hidden');
 });
 
-// Atalho: Ctrl+Enter para enviar
+// Atalho: Ctrl/⌘ + Enter para enviar
 textArea.addEventListener("keydown", (e) => {
-    const isMac = navigator.platform.toUpperCase().includes('MAC');
-    const cmdEnter = isMac && e.metaKey && e.key === "Enter";
-    const ctrlEnter = !isMac && e.ctrlKey && e.key === "Enter";
-    if (cmdEnter || ctrlEnter) {
-        e.preventDefault();
-        analyze();
-    }
+  const isMac = navigator.platform.toUpperCase().includes('MAC');
+  const cmdEnter = isMac && e.metaKey && e.key === "Enter";
+  const ctrlEnter = !isMac && e.ctrlKey && e.key === "Enter";
+  if (cmdEnter || ctrlEnter) {
+    e.preventDefault();
+    analyze();
+  }
 });
 
 // Ajusta tooltip do botão Analisar conforme o sistema
 (function () {
-    const analyzeBtn = document.getElementById('analyze');
-    if (!analyzeBtn) return;
-    const isMac = navigator.platform.toUpperCase().includes('MAC');
-    analyzeBtn.title = isMac ? "Atalho: ⌘ + Enter" : "Atalho: Ctrl + Enter";
+  const isMac = navigator.platform.toUpperCase().includes('MAC');
+  analyzeBtn.title = isMac ? "Atalho: ⌘ + Enter" : "Atalho: Ctrl + Enter";
 })();
-
-
