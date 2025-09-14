@@ -31,10 +31,28 @@ async def analyze(
     if not email_file and not email_text:
         raise HTTPException(400, detail="Envie um arquivo .txt/.pdf ou cole o texto do email.")
 
-    # conteúdo
-    content = read_txt_pdf(email_file) if email_file else (email_text or "")
+    # conteúdo (combina texto + arquivo, se ambos vierem)
+    raw_text = (email_text or "").strip()
+
+    file_text = ""
+    # Alguns navegadores podem mandar o campo mesmo sem arquivo; trate isso:
+    if isinstance(email_file, UploadFile) and getattr(email_file, "filename", None):
+        # Evita tentar ler quando o input veio, mas sem arquivo real
+        if email_file.filename.strip():
+            file_text = read_txt_pdf(email_file)  # sua função já lida com txt/pdf
+
+    if raw_text and file_text:
+        content = f"{raw_text}\n\n---\n[CONTEÚDO DO ANEXO]\n{file_text}"
+    elif raw_text:
+        content = raw_text
+    elif file_text:
+        content = file_text
+    else:
+        raise HTTPException(400, detail="Envie um arquivo .txt/.pdf ou cole o texto do email.")
+
     text_clean = clean_text(content)
     snippet = text_clean[:1000]
+
 
     # classificar
     category, confidence, signals, info = classify_email(content)
