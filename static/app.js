@@ -220,3 +220,24 @@ toggleJsonBtn?.addEventListener('click', () => {
   if (!rawJson) return;
   rawJson.classList.toggle('hidden');
 });
+
+// Atalho: Ctrl+Enter para enviar
+textArea.addEventListener("keydown", (e) => {
+    const isMac = navigator.platform.toUpperCase().includes('MAC');
+    const cmdEnter = isMac && e.metaKey && e.key === "Enter";
+    const ctrlEnter = !isMac && e.ctrlKey && e.key === "Enter";
+    if (cmdEnter || ctrlEnter) {
+        e.preventDefault();
+        analyze();
+    }
+});
+
+// Ajusta tooltip do botão Analisar conforme o sistema
+(function () {
+    const analyzeBtn = document.getElementById('analyze');
+    if (!analyzeBtn) return;
+    const isMac = navigator.platform.toUpperCase().includes('MAC');
+    analyzeBtn.title = isMac ? "Atalho: ⌘ + Enter" : "Atalho: Ctrl + Enter";
+})();
+
+
