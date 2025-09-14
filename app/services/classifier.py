@@ -96,6 +96,13 @@ FUNCTIONING_PHRASES = {
     "issue resolvida","resolvido"
 }
 
+# saudações simples (pt) – não indicam ação por si só
+GREETING_TERMS = {
+    "ola", "olá", "oi", "bom dia", "boa tarde", "boa noite",
+    "tudo bem", "como vai", "como está", "como esta"
+}
+
+
 # --- léxicos adicionais (pt/en/es) ---
 ACTION_TERMS_EXTRA = {
     # pt
@@ -189,6 +196,16 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         # garante 'obrigado' uma única vez no topo
         if not any((s or "").strip().lower().startswith("obrigado") for s in signals):
             signals = ["obrigado"] + signals
+    
+    # (1.1) Saudação curta sem pedido -> Improdutivo
+    short_tokens = len(norm.split())
+    has_greeting = any(t in norm for t in GREETING_TERMS)
+
+    if has_greeting and not has_action and short_tokens <= 6:
+        category = "Improdutivo"
+        confidence = max(float(confidence or 0.0), 0.80)
+        meta["greeting_only"] = True
+
 
     # (2) Marketing/Newsletter/Convite sem pedido -> Improdutivo
     if any(t in norm for t in MARKETING_TERMS) and not has_action:
