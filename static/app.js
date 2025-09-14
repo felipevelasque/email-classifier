@@ -136,6 +136,27 @@ async function analyze() {
     }
 
     renderResult(data);
+    // 🧹 Limpa inputs após sucesso
+    textArea.value = '';
+    droppedFile = null;
+    fileInput.value = '';
+
+    // restaura o dropzone para o estado inicial
+    dropzone.innerHTML = `
+        <input id="file" type="file" accept=".txt,.pdf" hidden />
+        <div>
+            <strong>Arraste</strong> um arquivo .txt/.pdf aqui ou 
+            <button id="pick" type="button" class="link">clique para selecionar</button>
+        </div>
+    `;
+    // reanexa os listeners, porque recriamos o input
+    const newFileInput = dropzone.querySelector('#file');
+    newFileInput.addEventListener('change', (e) => {
+        droppedFile = e.target.files[0] || null;
+        if (droppedFile) showToast(`Arquivo selecionado: ${droppedFile.name}`);
+    });
+    document.getElementById('pick').addEventListener('click', () => newFileInput.click());
+
   } catch (e) {
     showToast(e.message || 'Erro ao processar');
     console.error(e);
