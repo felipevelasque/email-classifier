@@ -65,7 +65,7 @@ source .venv/bin/activate   # Linux/Mac
 .venv\Scripts\activate      # Windows
 
 3. Instale as dependências
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 
 4. Configure variáveis de ambiente no arquivo .env (raiz do projeto):
 OPENAI_KEY=sk-...
