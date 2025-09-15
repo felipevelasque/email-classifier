@@ -4,8 +4,67 @@ from fastapi import UploadFile, HTTPException
 import io, re, requests
 from pdfminer.high_level import extract_text as pdf_extract_text
 import time
-
+from langdetect import detect_langs, DetectorFactory
 from app.core.settings import HF_TOKEN, HF_MODEL
+
+DetectorFactory.seed = 0  
+
+SUPPORTED = {"pt", "en", "es"}  # idiomas 
+
+_EN_WHITELIST = {
+    "hi", "hello", "hey", "good morning", "good afternoon", "good evening",
+    "thanks", "thank you"
+}
+_ES_WHITELIST = {
+    "hola", "buenas", "buenos dias", "buenos días", "buenas tardes", "gracias"
+}
+
+_PT_WHITELIST = {
+    "oi", "ola", "olá", "bom dia", "boa tarde", "boa noite", "obrigado", "obrigada"
+}
+
+def detect_language(text: str, default: str = "pt") -> str:
+    """
+    Detecta idioma com fallback para heurísticas em textos curtos.
+    Retorna 'pt' | 'en' | 'es' (default se não suportado).
+    """
+    t = (text or "").strip()
+    if not t:
+        return default
+
+    norm = normalize(t)  # sua função já remove acentos e baixa caixa
+
+    # Heurística para textos MUITO curtos (saudações)
+    if len(norm) <= 12:
+        if any(kw in norm for kw in _EN_WHITELIST):
+            return "en"
+        if any(kw in norm for kw in _ES_WHITELIST):
+            return "es"
+        if any(kw in norm for kw in _PT_WHITELIST):
+            return "pt"
+
+    # Tentativa com langdetect (com probabilidade)
+    try:
+        langs = detect_langs(t)  # ex.: [en:0.86, es:0.07, ...]
+        top = max(langs, key=lambda x: x.prob)
+        lang, prob = top.lang, float(top.prob)
+
+        # Se a confiança for baixa e o texto curto, aplique heurística
+        if prob < 0.75 and len(t) <= 25:
+            # ASCII e com palavras inglesas = favorece EN
+            if t.isascii() and any(c.isalpha() for c in t):
+                if any(kw in norm for kw in _EN_WHITELIST):
+                    return "en"
+                # default heurístico quando tudo é ASCII curtíssimo
+                return "en"
+
+        return lang if lang in SUPPORTED else default
+    except Exception:
+        # Fallback final simples
+        if t.isascii() and any(c.isalpha() for c in t):
+            if any(kw in norm for kw in _EN_WHITELIST):
+                return "en"
+        return default
 
 # --- regex e utilitários
 HTML_TAG_RE = re.compile(r"<[^>]+>")

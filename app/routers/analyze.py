@@ -4,7 +4,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from pathlib import Path
 
-from app.services.classifier import read_txt_pdf, classify_email, clean_text
+from app.services.classifier import read_txt_pdf, classify_email, clean_text, detect_language
 from app.services.replier import ai_reply, reply_template
 from app.schemas import AnalyzeResponse
 import logging
@@ -69,17 +69,21 @@ async def analyze(
     text_clean = clean_text(content)
     snippet = text_clean[:1000]
 
+    # 🔹 detectar idioma do e-mail
+    lang = detect_language(snippet, default="pt")
+
+    #classificar
     category, confidence, signals, info = classify_email(content)
 
     # --- resposta ---
     fallbacks = []
     used_openai = False
-    ai_text = ai_reply(category, snippet, signals)
+    ai_text = ai_reply(category, snippet, signals, lang=lang)
     if ai_text:
         reply_text = ai_text
         used_openai = True
     else:
-        reply_text = reply_template(category, signals)
+        reply_text = reply_template(category, signals, lang=lang)
         fallbacks.append("templates")
 
     logger.info(
@@ -97,7 +101,7 @@ async def analyze(
     # --- meta ---
     elapsed_ms = max(1, math.ceil((time.perf_counter() - start) * 1000))
     meta = {
-        "language": "pt",
+        "language": lang,
         "signals": signals,
         "used_hf": info.get("used_hf", False),
         "used_openai": used_openai,

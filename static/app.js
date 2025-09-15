@@ -226,7 +226,8 @@ function renderResult(data) {
     `Usou LLM: ${data.meta?.used_openai ? 'sim' : 'não'} | ` +
     `Fallbacks: ${(data.meta?.fallbacks || []).join(', ')} | ` +
     `Tempo: ${t} ms | ` +
-    `Tamanho: ${size} chars`;
+    `Tamanho: ${size} chars | ` +
+    `Idioma: ${data.meta?.language || '—'}`;
 
 }
 
