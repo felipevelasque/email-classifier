@@ -1,5 +1,7 @@
 from typing import List
 from app.core.settings import OPENAI_KEY, OPENAI_MODEL, TEMP, MAX_TOKENS
+import time
+
 
 def reply_template(category: str, signals: List[str]) -> str:
     has_attach = any(s in signals for s in ("anexo", "arquivo"))
@@ -34,6 +36,29 @@ def ai_reply(category: str, snippet: str, signals: list[str], temperature: float
             "  e prometa APENAS a primeira atualização (até 1 dia útil). "
             "- Se o email for IMPRODUTIVO: agradeça, reconheça o contexto e encerre gentilmente sem pedir ação adicional."
         )
+        user_msg = f"Categoria: {category}\nSinais: {signals}\nTrecho: {snippet[:800]}"
+
+        retries = 3
+        backoff = 2
+        for attempt in range(1, retries + 1):
+            try:
+                resp = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=[{"role":"system","content":sys_msg},
+                            {"role":"user","content":user_msg}],
+                    temperature=TEMP,
+                    max_tokens=MAX_TOKENS,
+                    timeout=15
+                )
+                return resp.choices[0].message.content.strip()
+            except Exception as e:
+                if attempt == retries:
+                    print(f"[OpenAI] Falha após {retries} tentativas: {e}")
+                    return None
+                wait = backoff ** attempt
+                print(f"[OpenAI] Tentativa {attempt} falhou, aguardando {wait}s...")
+                time.sleep(wait)
+
 
         # pequena dica de estilo específica por classe
         if category == "Improdutivo":
