@@ -22,6 +22,9 @@ const toast = document.getElementById('toast');
 
 const copyBtn = document.getElementById('copy');
 
+const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+
+
 let droppedFile = null;
 
 
@@ -79,6 +82,13 @@ bindPickButton();
 fileInput?.addEventListener('change', (e) => {
   droppedFile = e.target.files[0] || null;
   if (droppedFile) {
+    if (droppedFile.size > MAX_SIZE) {
+      showToast('Arquivo maior que 2MB não é permitido.');
+      droppedFile = null;
+      fileInput.value = '';
+      resetDropzone();
+      return;
+    }
     showToast(`Arquivo selecionado: ${droppedFile.name}`);
     setDropzoneFile(droppedFile.name);
   } else {
@@ -96,6 +106,10 @@ fileInput?.addEventListener('change', (e) => {
 dropzone?.addEventListener('drop', (e) => {
   const f = e.dataTransfer.files && e.dataTransfer.files[0];
   if (!f) return;
+  if (f.size > MAX_SIZE) {
+    showToast('Arquivo maior que 2MB não é permitido.');
+    return;
+  }
   if (!/\.(txt|pdf)$/i.test(f.name)) { 
     showToast('Envie .txt ou .pdf'); 
     return; 

@@ -27,14 +27,23 @@ def normalize(text: str) -> str:
 def read_txt_pdf(file: UploadFile) -> str:
     name = (file.filename or "").lower()
     blob = file.file.read()
+
     if name.endswith(".txt"):
-        return blob.decode(errors="ignore")
+        text = blob.decode(errors="ignore")
+        if not text.strip():
+            raise HTTPException(422, detail="TXT vazio ou ilegível.")
+        return text
+
     if name.endswith(".pdf"):
         try:
             with io.BytesIO(blob) as f:
-                return pdf_extract_text(f)
+                text = pdf_extract_text(f)
+            if not text.strip():
+                raise HTTPException(422, detail="PDF sem texto (escaneado/sem OCR) ou vazio.")
+            return text
         except Exception:
-            raise HTTPException(415, detail="PDF não suportado (envie PDF pesquisável)")
+            raise HTTPException(415, detail="PDF não suportado (envie PDF pesquisável).")
+
     raise HTTPException(415, detail="Formato não suportado. Use .txt ou .pdf.")
 
 # --- sinais base
