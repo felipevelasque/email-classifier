@@ -73,9 +73,11 @@ pip3 install -r requirements.txt
 ```
 
 4. Configure variáveis de ambiente no arquivo .env (raiz do projeto):
+```
 OPENAI_KEY=sk-...
 HF_TOKEN=hf_...
 HF_MODEL=facebook/bart-large-mnli
+```
 
 5. Execute o servidor
 ```bash 
@@ -90,21 +92,32 @@ http://localhost:8000
 ---
 
 Estrutura do projeto
-
+```
 email-classifier/
-├── app/
-│   ├── core/          # Configurações 
-│   ├── routers/       # Rotas (index, /api/analyze)
-│   ├── services/      # Classificação e respostas (NLP, LLMs, regras)
-│   ├── main.py        # App FastAPI
-│   └── schemas.py     # Modelos Pydantic (API)
-├── static/            # style.css, app.js
-├── templates/         # index.html
-├── examples/          # Casos de teste (arquivos .txt)
-├── requirements.txt   # Dependências
-├── .env               # Variáveis de ambiente
-└── README.md          # Este arquivo
-
+├── app
+│   ├── core
+│   │   ├── logging.py
+│   │   └── settings.py
+│   ├── main.py
+│   ├── routers
+│   │   └── analyze.py
+│   ├── schemas.py
+│   └── services
+│       ├── classifier.py
+│       └── replier.py
+├── examples
+│   ├── bigfile.txt
+│   ├── empty.txt
+│   ├── status.txt
+│   └── thanks.txt
+├── requirements.txt
+├── README.md
+├── static
+│   ├── app.js
+│   └── style.css
+└── templates
+    └── index.html
+```
 ---
 
 Testando via curl
