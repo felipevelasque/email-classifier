@@ -3,6 +3,7 @@ from typing import List, Tuple
 from fastapi import UploadFile, HTTPException
 import io, re, requests
 from pdfminer.high_level import extract_text as pdf_extract_text
+import time
 
 from app.core.settings import HF_TOKEN, HF_MODEL
 
@@ -323,29 +324,40 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
 
 
 # --- HF zero-shot
+
 def hf_zero_shot(text: str) -> tuple[str, float] | None:
     if not HF_TOKEN:
         return None
-    try:
-        url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-        headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-        payload = {
-            "inputs": text,
-            "parameters": {
-                "candidate_labels": ["Produtivo", "Improdutivo"],
-                "hypothesis_template": "Este email requer uma ação imediata da equipe: {}."
-            }
+    url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    payload = {
+        "inputs": text,
+        "parameters": {
+            "candidate_labels": ["Produtivo", "Improdutivo"],
+            "hypothesis_template": "Este email requer uma ação imediata da equipe: {}."
         }
-        r = requests.post(url, headers=headers, json=payload, timeout=15)
-        r.raise_for_status()
-        data = r.json()
-        labels = data.get("labels") or []
-        scores = data.get("scores") or []
-        if not labels or not scores:
-            return None
-        return labels[0], float(scores[0])
-    except Exception:
-        return None
+    }
+
+    retries = 3
+    backoff = 2
+    for attempt in range(1, retries + 1):
+        try:
+            r = requests.post(url, headers=headers, json=payload, timeout=10)
+            r.raise_for_status()
+            data = r.json()
+            labels = data.get("labels") or []
+            scores = data.get("scores") or []
+            if not labels or not scores:
+                return None
+            return labels[0], float(scores[0])
+        except Exception as e:
+            if attempt == retries:
+                print(f"[HF] Falha após {retries} tentativas: {e}")
+                return None
+            wait = backoff ** attempt
+            print(f"[HF] Tentativa {attempt} falhou, aguardando {wait}s...")
+            time.sleep(wait)
+
     
 def _normalize_signals(signals: list[str]) -> list[str]:
     """Padroniza sinais (lower/strip), consolida variações e remove duplicatas preservando a ordem."""
