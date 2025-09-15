@@ -21,7 +21,6 @@ const loader = document.getElementById('loader');
 const toast = document.getElementById('toast');
 
 const copyBtn = document.getElementById('copy');
-const copyClearBtn = document.getElementById('copyClear');
 
 let droppedFile = null;
 
@@ -225,16 +224,6 @@ copyBtn?.addEventListener('click', async () => {
   }
 });
 
-copyClearBtn?.addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(reply.value || '');
-  } catch { /* ignora se não conseguir copiar */ }
-  textArea.value = '';
-  droppedFile = null;
-  if (fileInput) fileInput.value = '';
-  resetDropzone();
-  showToast('Copiado e limpo!');
-});
 
 // toggle JSON bruto
 toggleJsonBtn?.addEventListener('click', () => {
