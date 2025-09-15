@@ -7,14 +7,17 @@ from pathlib import Path
 from app.services.classifier import read_txt_pdf, classify_email, clean_text
 from app.services.replier import ai_reply, reply_template
 from app.schemas import AnalyzeResponse
+import logging
+logger = logging.getLogger(__name__)
 
-router = APIRouter()
+
+router = APIRouter(prefix="/api")
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES = ROOT / "templates"
 MAX_SIZE = 2 * 1024 * 1024  # 2 MB
 
-@router.post("/api/analyze", response_model=AnalyzeResponse)
+@router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(
     email_file: UploadFile | None = File(None),
     email_text: str | None = Form(None),
@@ -78,6 +81,18 @@ async def analyze(
     else:
         reply_text = reply_template(category, signals)
         fallbacks.append("templates")
+
+    logger.info(
+    "analyze_result",
+    extra={
+        "category": category,
+        "confidence": confidence,
+        "signals": signals[:6],  # limita o tamanho do log
+        "used_hf": info.get("used_hf", False),
+        "used_openai": used_openai,
+        },
+    )
+
 
     # --- meta ---
     elapsed_ms = max(1, math.ceil((time.perf_counter() - start) * 1000))
