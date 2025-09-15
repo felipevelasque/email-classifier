@@ -19,7 +19,7 @@ def clean_text(text: str) -> str:
 def normalize(text: str) -> str:
     try:
         from unidecode import unidecode
-        return unidecode(text.lower())
+        return unidecode(text.lower().strip())
     except Exception:
         return text.lower()
 
@@ -95,6 +95,15 @@ FUNCTIONING_PHRASES = {
     "tudo funcionando","funcionando perfeitamente","problema resolvido",
     "issue resolvida","resolvido"
 }
+
+WELL_WISHES_TERMS = {
+    "espero que estejam bem", "espero que esteja bem",
+    "ótima semana", "otima semana",
+    "boa semana", "boa jornada", "bom trabalho",
+    "tenha um bom dia", "tenha uma boa semana",
+    "desejo uma ótima semana", "desejo uma otima semana",
+}
+
 
 # saudações simples (pt) – não indicam ação por si só
 GREETING_TERMS = {
@@ -197,14 +206,23 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         if not any((s or "").strip().lower().startswith("obrigado") for s in signals):
             signals = ["obrigado"] + signals
     
-    # (1.1) Saudação curta sem pedido -> Improdutivo
-    short_tokens = len(norm.split())
+    # (1.1) Saudação/boas-vindas sem pedido -> Improdutivo
     has_greeting = any(t in norm for t in GREETING_TERMS)
+    has_well_wishes = any(t in norm for t in WELL_WISHES_TERMS)
 
-    if has_greeting and not has_action and short_tokens <= 6:
+    # sinal de pergunta real
+    has_question = "?" in norm
+
+    # Considera mensagens de saudação mesmo que um pouco maiores (até ~20 tokens),
+    # desde que não haja pedido de ação e não seja pergunta.
+    token_count = len(norm.split())
+
+    if (has_greeting or has_well_wishes) and not has_action and not has_question and token_count <= 20:
         category = "Improdutivo"
         confidence = max(float(confidence or 0.0), 0.80)
         meta["greeting_only"] = True
+        if "saudacao" not in signals:
+            signals = ["saudacao"] + signals
 
 
     # (2) Marketing/Newsletter/Convite sem pedido -> Improdutivo
