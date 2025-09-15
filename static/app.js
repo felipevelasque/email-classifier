@@ -163,6 +163,10 @@ async function analyze() {
 
 function renderResult(data) {
   result.classList.remove('hidden');
+  // Acessibilidade
+  result.setAttribute("tabindex", "-1");
+  result.focus();
+
 
   // categoria + badge
   badge.textContent = data.category || '—';
