@@ -33,6 +33,7 @@ O projeto combina **NLP + regras heurísticas + LLMs (OpenAI / Hugging Face)** p
 - Tratamento de erros com mensagens claras:  
     - Arquivo vazio → `400 Bad Request`  
     - Arquivo muito grande (>2MB) → `413 Arquivo muito grande`  
+    - Requisição inválida (campo errado) → `HTTP 422 Unprocessable Entity`
 
 ---
 
@@ -91,7 +92,7 @@ http://localhost:8000
 
 ---
 
-Estrutura do projeto
+**Estrutura do projeto**
 ```
 email-classifier/
 ├── app
@@ -120,7 +121,7 @@ email-classifier/
 ```
 ---
 
-Testando via curl
+**Testando via curl**<br>
 recomendado instalar jq (se ainda não tiver)
 ```bash 
 brew install jq #macOS (Homebrew)
@@ -128,7 +129,7 @@ sudo apt-get install jq -y  #Ubuntu/Debian
 ```
 
 
-Casos normais:
+**Casos normais:**<br>
 Pergunta de status -> Produtivo HTTP 200 OK
 ```bash  
 curl -s -X POST -F "email_file=@examples/status.txt" http://localhost:8000/api/analyze | jq . 
@@ -139,7 +140,7 @@ Agradecimento -> Improdutivo HTTP 200 OK
 curl -s -X POST -F "email_file=@examples/thanks.txt" http://localhost:8000/api/analyze | jq . 
 ```
 
-Casos de erro:
+**Casos de erro:**<br>
 Arquivo vazio -> HTTP 400 Bad Request
 ```bash 
 curl -s -X POST -F "email_file=@examples/empty.txt" http://localhost:8000/api/analyze | jq .
