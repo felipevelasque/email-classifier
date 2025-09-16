@@ -73,7 +73,10 @@ source .venv/bin/activate   # Linux/Mac
 pip3 install -r requirements.txt
 ```
 
-4. Configure variáveis de ambiente no arquivo .env (raiz do projeto):
+4. Configure variáveis de ambiente no arquivo .env (raiz do projeto):<br><br>
+
+O projeto depende de algumas chaves de API e variáveis de configuração.  
+Para rodar **localmente**, crie um arquivo `.env` na raiz do projeto baseado no `.env.example`:
 ```
 OPENAI_KEY=sk-...
 HF_TOKEN=hf_...
