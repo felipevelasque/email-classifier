@@ -206,7 +206,8 @@ function renderResult(data) {
       marketing_newsletter: 'Marketing/Newsletter',
       resolved_or_cancelled: 'Resolvido/Cancelado',
       urgency_boost: 'Urgência',
-      short_question_hint: 'Pergunta curta'
+      short_question_hint: 'Pergunta curta',
+      issue_detected: 'Problema detectado'
     };
     Object.entries(ov).forEach(([k,v]) => {
       if (v === true) overridesBox.appendChild(mkChip(labels[k] || k, 'override'));
