@@ -211,6 +211,19 @@ URGENCY_TERMS_RX = _compile_patterns([
     "urgente","urgencia","asap","o mais rapido possivel","priority","prioridade",
 ])
 
+FOLLOWUP_TERMS_RX = [
+    re.compile(r"\bnao\s+responderam\b", FLAGS),
+    re.compile(r"\bnao\s+recebi\s+retorno\b", FLAGS),
+    re.compile(r"\bnao\s+tive\s+retorno\b", FLAGS),
+    re.compile(r"\bsem\s+(resposta|retorno)\b", FLAGS),
+    re.compile(r"\b(ultimo|meu\s+ultimo)\s+e[-\s]*mail\b", FLAGS),  # <- casa "email" e "e-mail"
+    re.compile(r"\baguardo\s+retorno\b", FLAGS),
+    re.compile(r"\bainda\s+nao\s+responderam\b", FLAGS),
+    re.compile(r"\b(podem\s+responder|podem\s+me\s+retornar)\b", FLAGS),
+    re.compile(r"\bfollow[-\s]*up\b", FLAGS),
+]
+
+
 # Padrões de erro/issue/acesso (já como regex "livre")
 ERROR_PATTERNS_RX = [
     re.compile(p, FLAGS) for p in [
@@ -304,11 +317,17 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
     has_info_term    = any_match(INFO_TERMS_RX, norm)
     has_question     = "?" in norm
     has_issue        = _has_issue(norm)
+    has_followup     = any(rx.search(norm) for rx in FOLLOWUP_TERMS_RX)
 
-    has_action = has_issue or has_request_verb or (has_info_term and has_question)
+
+
+    has_action = has_issue or has_request_verb or (has_info_term and has_question) or has_followup
     if has_issue:
         meta["issue_detected"] = True
-
+    
+    if has_followup:
+        meta["followup_detectado"] = True
+ 
     # (1) Gratidão/felicitações sem pedido -> Improdutivo
     has_gratitude = any_match(GRATITUDE_TERMS_RX, norm)
     if has_gratitude and not has_action:
@@ -330,6 +349,12 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
             meta["greeting_only"] = True
             if "saudacao" not in signals:
                 signals = ["saudacao"] + signals
+    
+    if meta.get("followup_detectado"):
+        if category != "Produtivo":
+            category = "Produtivo"
+        confidence = max(float(confidence or 0.0), 0.80)
+
 
     # (2) Marketing/newsletter/convite sem pedido -> Improdutivo
     if any_match(MARKETING_TERMS_RX, norm) and not has_action:
@@ -345,7 +370,7 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         meta["resolved_or_cancelled"] = True
 
     # (4) Ação detectada mas modelo veio Improdutivo com baixa confiança → força Produtivo
-    if has_action and category == "Improdutivo" and float(confidence or 0.0) < 0.80:
+    if has_action and category == "Improdutivo" and float(confidence or 0.0) <= 0.80:
         category = "Produtivo"
         confidence = max(float(confidence or 0.0), 0.75)
         meta["action_over_low_conf"] = True
