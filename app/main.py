@@ -25,10 +25,16 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Email Auto Classifier", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 
+# Health check 
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True}
+
 # Home (UI)
 @app.get("/")
-async def index():
-    return FileResponse(str(TEMPLATES / "index.html"))
+async def home():
+    return FileResponse(TEMPLATES / "index.html", media_type="text/html")
+
 
 # API
 app.include_router(analyze_router)
