@@ -7,9 +7,9 @@ import time
 from langdetect import detect_langs, DetectorFactory
 from app.core.settings import HF_TOKEN, HF_MODEL
 
-DetectorFactory.seed = 0  
+DetectorFactory.seed = 0
 
-SUPPORTED = {"pt", "en", "es"}  # idiomas 
+SUPPORTED = {"pt", "en", "es"}  # idiomas
 
 _EN_WHITELIST = {
     "hi", "hello", "hey", "good morning", "good afternoon", "good evening",
@@ -18,7 +18,6 @@ _EN_WHITELIST = {
 _ES_WHITELIST = {
     "hola", "buenas", "buenos dias", "buenos días", "buenas tardes", "gracias"
 }
-
 _PT_WHITELIST = {
     "oi", "ola", "olá", "bom dia", "boa tarde", "boa noite", "obrigado", "obrigada"
 }
@@ -32,7 +31,7 @@ def detect_language(text: str, default: str = "pt") -> str:
     if not t:
         return default
 
-    norm = normalize(t)  # sua função já remove acentos e baixa caixa
+    norm = normalize(t)  # remove acentos e minúsculas
 
     # Heurística para textos MUITO curtos (saudações)
     if len(norm) <= 12:
@@ -43,24 +42,22 @@ def detect_language(text: str, default: str = "pt") -> str:
         if any(kw in norm for kw in _PT_WHITELIST):
             return "pt"
 
-    # Tentativa com langdetect (com probabilidade)
+    # Tentativa com langdetect (probabilidade)
     try:
         langs = detect_langs(t)  # ex.: [en:0.86, es:0.07, ...]
         top = max(langs, key=lambda x: x.prob)
         lang, prob = top.lang, float(top.prob)
 
-        # Se a confiança for baixa e o texto curto, aplique heurística
+        # Confiança baixa + texto curto => heurística
         if prob < 0.75 and len(t) <= 25:
-            # ASCII e com palavras inglesas = favorece EN
             if t.isascii() and any(c.isalpha() for c in t):
                 if any(kw in norm for kw in _EN_WHITELIST):
                     return "en"
-                # default heurístico quando tudo é ASCII curtíssimo
                 return "en"
 
         return lang if lang in SUPPORTED else default
     except Exception:
-        # Fallback final simples
+        # Fallback simples
         if t.isascii() and any(c.isalpha() for c in t):
             if any(kw in norm for kw in _EN_WHITELIST):
                 return "en"
@@ -148,7 +145,6 @@ REQUEST_TERMS = {
 # termos informativos (status/prazo) — contam como ação se vierem em pergunta
 INFO_TERMS = {"status","prazo","andamento","atualizacao","update","eta","estado","plazo"}
 
-
 # --- regras contextuais
 ACTION_HINTS = {
     "status","andamento","prazo","erro","atualizacao","protocolo",
@@ -164,7 +160,6 @@ FUNCTIONING_PHRASES = {
     "tudo funcionando","funcionando perfeitamente","problema resolvido",
     "issue resolvida","resolvido"
 }
-
 WELL_WISHES_TERMS = {
     "espero que estejam bem", "espero que esteja bem",
     "ótima semana", "otima semana",
@@ -172,14 +167,11 @@ WELL_WISHES_TERMS = {
     "tenha um bom dia", "tenha uma boa semana",
     "desejo uma ótima semana", "desejo uma otima semana",
 }
-
-
 # saudações simples (pt) – não indicam ação por si só
 GREETING_TERMS = {
     "ola", "olá", "oi", "bom dia", "boa tarde", "boa noite",
     "tudo bem", "como vai", "como está", "como esta"
 }
-
 
 # --- léxicos adicionais (pt/en/es) ---
 ACTION_TERMS_EXTRA = {
@@ -203,6 +195,16 @@ RESOLVED_TERMS = {
     "nao preciso","não preciso","pode desconsiderar","pode cancelar","cancelar solicitacao","cancelada","cancelado"
 }
 URGENCY_TERMS = {"urgente","urgencia","asap","o mais rapido possivel","priority","prioridade"}
+
+# --- termos/padrões que indicam PROBLEMA/ERRO/ACESSO (pt/en/es) ---
+ERROR_PATTERNS = [
+    r"\b(erro|error|bug|falha|falhou|trav(a|ou)|crash)\b",
+    r"\b(problema|issue|incidente)\b",
+    r"\b(acessar|acesso|login|logar|autentica(ca|ção)|senha|usu[aá]rio)\b",
+    r"\b(n[aã]o consigo|nao consigo|n[aã]o funciona|nao funciona|fora do ar|offline)\b",
+]
+def _has_issue(text_norm: str) -> bool:
+    return any(re.search(p, text_norm, re.IGNORECASE) for p in ERROR_PATTERNS)
 
 def _has_any(text_norm: str, vocab: set[str]) -> bool:
     return any(term in text_norm for term in vocab)
@@ -249,8 +251,6 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         "noise_filter": [],
     }
 
-    import re
-
     # --- filtro anti-ruído: 'nf' só vale se "nota fiscal" ou token isolado ---
     def _looks_like_nf(txt: str) -> bool:
         return ("nota fiscal" in txt) or bool(re.search(r"\bnf\b", txt))
@@ -258,12 +258,16 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         signals = [s for s in signals if s != "nf"]
         meta["noise_filter"].append("nf")
 
-    # --- intenção de ação: verbo OU (termo de status + pergunta). 
-    # Termos de contexto isolados NÃO contam como ação. ---
+    # --- intenção de ação: issue OU verbo OU (termo de status + pergunta)
     has_request_verb = any(t in norm for t in REQUEST_TERMS)
-    has_info_term   = any(t in norm for t in INFO_TERMS)
-    has_question    = "?" in norm
-    has_action = has_request_verb or (has_info_term and has_question)
+    has_info_term    = any(t in norm for t in INFO_TERMS)
+    has_question     = "?" in norm
+    has_issue        = _has_issue(norm)  # <<< novo
+
+    # trate "issue" como ação (mesmo sem '?')
+    has_action = has_issue or has_request_verb or (has_info_term and has_question)
+    if has_issue:
+        meta["issue_detected"] = True
 
     # (1) Gratidão/Felicitação sem pedido -> Improdutivo
     has_gratitude = any(t in norm for t in GRATITUDE_TERMS)
@@ -271,28 +275,21 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         category = "Improdutivo"
         confidence = max(float(confidence or 0.0), 0.80)
         meta["gratitude_no_action"] = True
-        # garante 'obrigado' uma única vez no topo
         if not any((s or "").strip().lower().startswith("obrigado") for s in signals):
             signals = ["obrigado"] + signals
-    
-    # (1.1) Saudação/boas-vindas sem pedido -> Improdutivo
+
+    # (1.1) Saudação/boas-vindas sem pedido -> Improdutivo (apenas se realmente curto)
     has_greeting = any(t in norm for t in GREETING_TERMS)
     has_well_wishes = any(t in norm for t in WELL_WISHES_TERMS)
-
-    # sinal de pergunta real
-    has_question = "?" in norm
-
-    # Considera mensagens de saudação mesmo que um pouco maiores (até ~20 tokens),
-    # desde que não haja pedido de ação e não seja pergunta.
     token_count = len(norm.split())
 
-    if (has_greeting or has_well_wishes) and not has_action and not has_question and token_count <= 20:
-        category = "Improdutivo"
-        confidence = max(float(confidence or 0.0), 0.80)
-        meta["greeting_only"] = True
-        if "saudacao" not in signals:
-            signals = ["saudacao"] + signals
-
+    if (has_greeting or has_well_wishes) and not has_action and not has_question and not has_issue:
+        if token_count <= 6 and len(norm) <= 40:
+            category = "Improdutivo"
+            confidence = max(float(confidence or 0.0), 0.80)
+            meta["greeting_only"] = True
+            if "saudacao" not in signals:
+                signals = ["saudacao"] + signals
 
     # (2) Marketing/Newsletter/Convite sem pedido -> Improdutivo
     if any(t in norm for t in MARKETING_TERMS) and not has_action:
@@ -301,11 +298,11 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
             confidence = max(float(confidence or 0.0), 0.75)
         meta["marketing_newsletter"] = True
 
-    # (3) Resolvido/Cancelado/Desconsiderar -> SEMPRE Improdutivo (incondicional)
+    # (3) Resolvido/Cancelado/Desconsiderar -> SEMPRE Improdutivo
     if any(t in norm for t in RESOLVED_TERMS):
         category = "Improdutivo"
         confidence = max(float(confidence or 0.0), 0.85)
-        meta["resolved_or_cancelled"] = True  # <<< agora dentro do if, com confiança maior
+        meta["resolved_or_cancelled"] = True
 
     # (4) Ação detectada, modelo disse Improdutivo com baixa confiança -> força Produtivo
     if has_action and category == "Improdutivo" and float(confidence or 0.0) < 0.80:
@@ -321,15 +318,10 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
             signals = ["urgente"] + signals
 
     # (6) Pergunta/solicitação curta sobre status/prazo -> Produtivo com piso de confiança
-    # Funciona COM ou SEM "?" (ex.: "e o status", "status por favor", "prazo do ticket 123")
-    import re
-
     status_terms = {"status", "prazo", "andamento", "update", "eta", "ticket"}
     short_len = len(norm) <= 40
-    # poucas palavras? ajuda a pegar frases curtinhas sem pontuação
     short_tokens = len(norm.split()) <= 6
 
-    # padrões comuns de pergunta/solicitação sem interrogação
     looks_like_question = (
         "?" in norm
         or norm.strip() in {
@@ -340,7 +332,6 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         or any(f"{t} por favor" in norm for t in status_terms)
         or bool(re.search(r"\b(qual|sobre|e\s*o|e\s*quanto)\b", norm))
     )
-
     has_status_term = any(t in norm for t in status_terms)
 
     if (short_len or short_tokens) and has_status_term and looks_like_question:
@@ -363,14 +354,8 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
 
     signals = _normalize_signals(signals)
 
-    # (7) Mensagem muito curta e neutra (ex.: "feliz", "olá", "ok") -> Improdutivo
-    # Evita cair no fail-safe Produtivo quando não há intenção de ação.
+    # (7) Mensagem muito curta e neutra -> Improdutivo
     neutral_short = (len(norm.split()) <= 2 and len(norm) <= 12)
-
-    # já calculados acima / disponíveis aqui:
-    # - has_gratitude
-    # - has_action (via request verb ou info+pergunta)
-    has_status_term = any(t in norm for t in {"status","prazo","andamento","update","eta","ticket"})
     has_marketing   = any(t in norm for t in MARKETING_TERMS)
     has_resolved    = any(t in norm for t in RESOLVED_TERMS)
 
@@ -379,11 +364,13 @@ def apply_overrides(norm: str, category: str, confidence: float, signals: list[s
         confidence = max(float(confidence or 0.0), 0.65)
         meta["neutral_short"] = True
 
+    # Piso de confiança para casos de issue produtiva
+    if meta.get("issue_detected") and category == "Produtivo":
+        confidence = max(float(confidence or 0.0), 0.80)
+
     return category, round(float(confidence), 2), signals, meta
 
-
 # --- HF zero-shot
-
 def hf_zero_shot(text: str) -> tuple[str, float] | None:
     if not HF_TOKEN:
         return None
@@ -417,24 +404,18 @@ def hf_zero_shot(text: str) -> tuple[str, float] | None:
             print(f"[HF] Tentativa {attempt} falhou, aguardando {wait}s...")
             time.sleep(wait)
 
-    
 def _normalize_signals(signals: list[str]) -> list[str]:
     """Padroniza sinais (lower/strip), consolida variações e remove duplicatas preservando a ordem."""
     normed = []
     for s in signals:
         s2 = re.sub(r"\s+", " ", (s or "").strip().lower())
-        # consolidação de sinônimos/variações
         if s2 in {"muito obrigado", "obrigado!", "obrigado.", "obrigado,"}:
             s2 = "obrigado"
         normed.append(s2)
-
-    # remove duplicatas mantendo ordem
     deduped = list(dict.fromkeys(normed))
-    # regra extra: se "obrigado" estiver presente, remova qualquer variação redundante (já mapeamos acima, mas fica de segurança)
     if "obrigado" in deduped:
         deduped = ["obrigado"] + [x for x in deduped if x != "obrigado"][1:]
     return deduped
-
 
 # --- pipeline único chamado pela rota
 def classify_email(content: str) -> tuple[str, float, list, dict]:
@@ -456,8 +437,7 @@ def classify_email(content: str) -> tuple[str, float, list, dict]:
     pos_hits, neg_hits, _ = detect_signals(norm)
     signals = list(dict.fromkeys(pos_hits + neg_hits))[:8]
 
-    # filtro 'nf' ruído (pré) — também aplicado dentro do override para garantir
-    import re
+    # filtro 'nf' ruído (pré)
     def looks_like_nf(txt: str) -> bool:
         return ("nota fiscal" in txt) or bool(re.search(r"\bnf\b", txt))
     if "nf" in signals and not looks_like_nf(norm):
@@ -469,5 +449,3 @@ def classify_email(content: str) -> tuple[str, float, list, dict]:
     signals = _normalize_signals(signals)
 
     return category, round(float(confidence), 2), signals, {"used_hf": used_hf, "overrides": over_meta}
-
-
