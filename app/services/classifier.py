@@ -33,6 +33,21 @@ def detect_language(text: str, default: str = "pt") -> str:
 
     norm = normalize(t)  # remove acentos e minúsculas
 
+    # Heurísticas diretas ES/PT (independentes do tamanho)
+    if "hola" in norm:
+        return "es"
+    # 'ola' (sem h) é muito mais comum em PT; em ES "ola" = "onda"
+    if re.search(r"\bola\b", norm) and "hola" not in norm:
+        return "pt"
+    
+     # Whitelists (agora valem mesmo se a frase for um pouco maior)
+    if any(kw in norm for kw in _PT_WHITELIST):
+        return "pt"
+    if any(kw in norm for kw in _ES_WHITELIST):
+        return "es"
+    if any(kw in norm for kw in _EN_WHITELIST):
+        return "en"
+
     # Heurística para textos MUITO curtos (saudações)
     if len(norm) <= 12:
         if any(kw in norm for kw in _EN_WHITELIST):
@@ -42,11 +57,27 @@ def detect_language(text: str, default: str = "pt") -> str:
         if any(kw in norm for kw in _PT_WHITELIST):
             return "pt"
 
+    # Heurísticas específicas de português (mesmo sem 'ola')
+    PT_HINTS = [
+        "está", "nao", "não", "funcionando", "obrigado", "prazo",
+        "vocês", "voces", "atualização", "atualizacao"
+    ]
+    if any(hint in norm for hint in PT_HINTS):
+        return "pt"
+
     # Tentativa com langdetect (probabilidade)
     try:
         langs = detect_langs(t)  # ex.: [en:0.86, es:0.07, ...]
         top = max(langs, key=lambda x: x.prob)
         lang, prob = top.lang, float(top.prob)
+
+        # Se o detector disser 'es' mas houver forte sinal de PT, priorize PT
+        # (ex.: 'ola' sem 'hola', 'obrigado', etc.)
+        if lang == "es":
+            if re.search(r"\bola\b", norm) and "hola" not in norm:
+                return "pt"
+            if any(kw in norm for kw in _PT_WHITELIST):
+                return "pt"
 
         # Confiança baixa + texto curto => heurística
         if prob < 0.75 and len(t) <= 25:
@@ -57,7 +88,11 @@ def detect_language(text: str, default: str = "pt") -> str:
 
         return lang if lang in SUPPORTED else default
     except Exception:
-        # Fallback simples
+        # Fallback final simples
+        if "hola" in norm:
+            return "es"
+        if re.search(r"\bola\b", norm):
+            return "pt"
         if t.isascii() and any(c.isalpha() for c in t):
             if any(kw in norm for kw in _EN_WHITELIST):
                 return "en"
